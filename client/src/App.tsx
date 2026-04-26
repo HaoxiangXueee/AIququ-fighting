@@ -35,7 +35,7 @@ function Game() {
           {phase === 'evaluating' && (
             <div className="evaluating-overlay">
               <div className="evaluating-spinner"></div>
-              <p>AI正在评估双方答案...</p>
+              <p>AI评判裁决中...</p>
             </div>
           )}
           {phase === 'showing_values' && <BattleCard />}

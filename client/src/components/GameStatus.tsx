@@ -69,7 +69,7 @@ export function GameStatus() {
         {renderPlayers()}
         {renderScores()}
         <div className={`result ${iWon ? 'win' : 'lose'}`}>
-          {iWon ? '你赢了！' : '你输了！'}
+          {iWon ? '擂主已定 — 你胜！' : '擂主已定 — 你败！'}
         </div>
 
         {restartRequested ? (
@@ -90,10 +90,10 @@ export function GameStatus() {
         ) : (
           <div className="restart-options">
             <button className="btn btn-red" onClick={() => restartGame('same_topics')}>
-              同题目再来
+              同题再战
             </button>
             <button className="btn btn-blue" onClick={() => restartGame('new_topics')}>
-              换题目重来
+              换题再战
             </button>
           </div>
         )}

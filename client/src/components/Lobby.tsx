@@ -26,14 +26,14 @@ export function Lobby() {
   if (mode === 'choose') {
     return (
       <div className="lobby">
-        <h1>斗蛐蛐在线对战</h1>
-        <p className="lobby-subtitle">填答案，拼脑洞，AI判胜负</p>
+        <h1>斗蛐蛐 · 角斗场</h1>
+        <p className="lobby-subtitle">填答案 / 拼脑洞 / AI判胜负</p>
         <div className="lobby-buttons">
           <button className="btn btn-red" onClick={() => setMode('create')}>
-            创建房间（红方）
+            开擂（红方）
           </button>
           <button className="btn btn-blue" onClick={() => setMode('join')}>
-            加入房间（蓝方）
+            打擂（蓝方）
           </button>
         </div>
       </div>
@@ -43,12 +43,12 @@ export function Lobby() {
   if (mode === 'create') {
     return (
       <div className="lobby">
-        <h1>创建房间</h1>
-        <p className="lobby-hint">你将成为红方</p>
+        <h1>开擂</h1>
+        <p className="lobby-hint">你将成为红方擂主</p>
         <input
           className="input"
           type="text"
-          placeholder="输入你的昵称"
+          placeholder="输入你的名号"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
           onKeyDown={(e) => handleKeyDown(e, handleCreate)}
@@ -57,7 +57,7 @@ export function Lobby() {
         />
         <div className="lobby-buttons">
           <button className="btn btn-red" onClick={handleCreate} disabled={!nickname.trim()}>
-            创建
+            开擂
           </button>
           <button className="btn btn-secondary" onClick={() => setMode('choose')}>
             返回
@@ -69,12 +69,12 @@ export function Lobby() {
 
   return (
     <div className="lobby">
-      <h1>加入房间</h1>
-      <p className="lobby-hint">你将成为蓝方</p>
+      <h1>打擂</h1>
+      <p className="lobby-hint">你将成为蓝方挑战者</p>
       <input
         className="input"
         type="text"
-        placeholder="输入你的昵称"
+        placeholder="输入你的名号"
         value={nickname}
         onChange={(e) => setNickname(e.target.value)}
         maxLength={20}
@@ -83,7 +83,7 @@ export function Lobby() {
       <input
         className="input"
         type="text"
-        placeholder="输入房间号"
+        placeholder="输入擂台号"
         value={roomId}
         onChange={(e) => setRoomId(e.target.value.toUpperCase())}
         onKeyDown={(e) => handleKeyDown(e, handleJoin)}
@@ -95,7 +95,7 @@ export function Lobby() {
           onClick={handleJoin}
           disabled={!nickname.trim() || !roomId.trim()}
         >
-          加入
+          打擂
         </button>
         <button className="btn btn-secondary" onClick={() => setMode('choose')}>
           返回
@@ -110,10 +110,10 @@ export function Waiting() {
 
   return (
     <div className="lobby">
-      <h1>等待对手加入</h1>
-      <p className="room-code">房间号: {roomId}</p>
-      <p className="room-hint">将房间号分享给对手即可开始对战</p>
-      <p className="room-hint">你是红方，对手将作为蓝方加入</p>
+      <h1>等待挑战者</h1>
+      <p className="room-code">擂台号: {roomId}</p>
+      <p className="room-hint">将擂台号分享给对手即可开始对战</p>
+      <p className="room-hint">你是红方擂主，对手将作为蓝方挑战者加入</p>
     </div>
   );
 }

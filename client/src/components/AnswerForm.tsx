@@ -58,11 +58,11 @@ export function AnswerForm() {
       <div className="submit-area">
         {!submitted ? (
           <button className="btn btn-red" onClick={handleSubmit} disabled={!allFilled}>
-            提交答案
+            亮招
           </button>
         ) : (
           <div className="submitted-status">
-            <span className="check-icon">&#10003;</span> 已提交
+            <span className="check-icon">&#10003;</span> 已亮招
             {opponentSubmitted ? (
               <span className="opponent-ready"> 对手也已提交，正在评估...</span>
             ) : (

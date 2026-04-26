@@ -14,7 +14,7 @@ export function BattleReport() {
         第 {currentRound + 1} 局：{topics[currentRound]}
       </div>
       <div className={`battle-result ${isWinner ? 'win' : 'lose'}`}>
-        {isWinner ? '你赢了这局！' : '你输了这局！'}
+        {isWinner ? '此局你胜！' : '此局你败！'}
       </div>
       <div className="narrative-text">{currentRoundBattle.narrative}</div>
       <div className="current-scores">
