@@ -56,13 +56,47 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     client.join(room.roomId);
 
-    // Draw topics when both players are ready
-    room.topics = this.gameService.drawTopics();
+    // Send opponent_joined with available themes instead of starting game immediately
+    const availableThemes = this.gameService.getAvailableThemes();
+    this.server.to(room.roomId).emit('opponent_joined', {
+      availableThemes,
+      redPlayer: room.players.red?.nickname,
+      bluePlayer: room.players.blue?.nickname,
+    });
+  }
+
+  @SubscribeMessage('select_theme')
+  handleSelectTheme(client: Socket, payload: { themeId: string }) {
+    const room = this.roomService.getRoomBySocketId(client.id);
+    if (!room) {
+      client.emit('error', { message: '你不在任何房间中' });
+      return;
+    }
+
+    // Only red player can select theme
+    const side = this.roomService.getPlayerSide(room, client.id);
+    if (side !== 'red') {
+      client.emit('error', { message: '只有房主可以选择主题' });
+      return;
+    }
+
+    if (room.phase !== 'theme_select') {
+      client.emit('error', { message: '当前不在主题选择阶段' });
+      return;
+    }
+
+    // Set theme and draw topics
+    room.themeId = payload.themeId;
+    room.topics = this.gameService.drawTopics(payload.themeId);
+
+    const themeName = this.gameService.getAvailableThemes().find(t => t.id === payload.themeId)?.name || payload.themeId;
 
     this.server.to(room.roomId).emit('game_start', {
       topics: room.topics,
       redPlayer: room.players.red?.nickname,
       bluePlayer: room.players.blue?.nickname,
+      themeId: payload.themeId,
+      themeName,
     });
   }
 
@@ -110,6 +144,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const topic = room.topics[roundIndex];
     const redAnswer = room.answers.red[roundIndex]!;
     const blueAnswer = room.answers.blue[roundIndex]!;
+    const themeId = room.themeId!;
 
     // Phase: evaluating
     room.phase = 'evaluating';
@@ -117,7 +152,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       // Step 1: Evaluate values
-      const evalResult = await this.llmService.evaluateValues(topic, redAnswer, blueAnswer);
+      const evalResult = await this.llmService.evaluateValues(topic, redAnswer, blueAnswer, themeId);
 
       // Show values
       room.phase = 'showing_values';
@@ -137,6 +172,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         blueAnswer,
         evalResult.red,
         evalResult.blue,
+        themeId,
       );
 
       // Build round result
@@ -215,7 +251,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('restart_game')
-  handleRestartGame(client: Socket, payload: { option: 'same_topics' | 'new_topics' }) {
+  handleRestartGame(client: Socket, payload: { themeId: string }) {
     const room = this.roomService.getRoomBySocketId(client.id);
     if (!room) {
       client.emit('error', { message: '你不在任何房间中' });
@@ -238,14 +274,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    this.roomService.requestRestart(room, side, payload.option);
+    this.roomService.requestRestart(room, side, payload.themeId);
+
+    const themeName = this.gameService.getAvailableThemes().find(t => t.id === payload.themeId)?.name || payload.themeId;
 
     const opponentSide: PlayerSide = side === 'red' ? 'blue' : 'red';
     const opponentSocketId = room.players[opponentSide]?.socketId;
     if (opponentSocketId) {
       this.server.to(opponentSocketId).emit('restart_requested', {
         by: side,
-        option: payload.option,
+        themeId: payload.themeId,
+        themeName,
       });
     }
   }
@@ -270,11 +309,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    const themeName = this.gameService.getAvailableThemes().find(t => t.id === room.themeId)?.name || room.themeId;
+
     this.server.to(room.roomId).emit('restart_confirmed');
     this.server.to(room.roomId).emit('game_start', {
       topics: room.topics,
       redPlayer: room.players.red?.nickname,
       bluePlayer: room.players.blue?.nickname,
+      themeId: room.themeId,
+      themeName,
     });
   }
 

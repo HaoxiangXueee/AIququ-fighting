@@ -3,12 +3,20 @@ export type PlayerSide = 'red' | 'blue';
 export type GamePhase =
   | 'lobby'
   | 'waiting'
+  | 'theme_select'
   | 'answering'
   | 'evaluating'
   | 'showing_values'
   | 'showing_battle'
   | 'round_end'
   | 'game_over';
+
+export interface ThemeInfo {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+}
 
 export interface AnswerValues {
   relevance: number;
@@ -33,6 +41,8 @@ export interface GameState {
   myNickname: string;
   redPlayer: string | null;
   bluePlayer: string | null;
+  availableThemes: ThemeInfo[];
+  selectedTheme: ThemeInfo | null;
   topics: string[];
   currentRound: number;
   roundResults: RoundResult[];
@@ -47,6 +57,6 @@ export interface GameState {
   currentRoundBattle: { narrative: string; winner: PlayerSide } | null;
   nextRoundReady: boolean;
   opponentNextRoundReady: boolean;
-  restartRequested: { by: PlayerSide; option: 'same_topics' | 'new_topics' } | null;
+  restartRequested: { by: PlayerSide; themeId: string; themeName: string } | null;
   errorMessage: string | null;
 }

@@ -30,6 +30,7 @@ export class RoomService {
         red: { socketId, nickname },
         blue: null,
       },
+      themeId: null,
       topics: [],
       answers: {
         red: [null, null, null],
@@ -39,7 +40,7 @@ export class RoomService {
       currentRound: 0,
       roundResults: [],
       scores: { red: 0, blue: 0 },
-      phase: 'answering',
+      phase: 'theme_select',
       gameOver: false,
       winner: null,
       nextRoundReady: { red: false, blue: false },
@@ -55,6 +56,7 @@ export class RoomService {
     if (room.players.blue) return null; // Room is full
 
     room.players.blue = { socketId, nickname };
+    room.phase = 'theme_select';
     return room;
   }
 
@@ -120,21 +122,20 @@ export class RoomService {
     return room.nextRoundReady.red && room.nextRoundReady.blue;
   }
 
-  requestRestart(room: Room, by: PlayerSide, option: 'same_topics' | 'new_topics'): void {
-    room.restartRequest = { by, option };
+  requestRestart(room: Room, by: PlayerSide, themeId: string): void {
+    room.restartRequest = { by, themeId };
   }
 
   confirmRestart(room: Room, confirmer: PlayerSide): boolean {
     if (!room.restartRequest) return false;
     if (room.restartRequest.by === confirmer) return false; // Can't confirm own request
 
-    const option = room.restartRequest.option;
+    const themeId = room.restartRequest.themeId;
     room.restartRequest = null;
 
-    // Reset game state
-    if (option === 'new_topics') {
-      room.topics = this.gameService.drawTopics();
-    }
+    // Reset game state with new theme
+    room.themeId = themeId;
+    room.topics = this.gameService.drawTopics(themeId);
     room.answers = { red: [null, null, null], blue: [null, null, null] };
     room.submitted = { red: false, blue: false };
     room.currentRound = 0;

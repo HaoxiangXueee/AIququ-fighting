@@ -35,6 +35,13 @@ export function useSocket() {
     [getSocket],
   );
 
+  const selectTheme = useCallback(
+    (themeId: string) => {
+      getSocket().emit('select_theme', { themeId });
+    },
+    [getSocket],
+  );
+
   const submitAnswers = useCallback(
     (answers: [string, string, string]) => {
       getSocket().emit('submit_answers', { answers });
@@ -47,8 +54,8 @@ export function useSocket() {
   }, [getSocket]);
 
   const restartGame = useCallback(
-    (option: 'same_topics' | 'new_topics') => {
-      getSocket().emit('restart_game', { option });
+    (themeId: string) => {
+      getSocket().emit('restart_game', { themeId });
     },
     [getSocket],
   );
@@ -61,6 +68,7 @@ export function useSocket() {
     socketRef,
     createRoom,
     joinRoom,
+    selectTheme,
     submitAnswers,
     nextRound,
     restartGame,

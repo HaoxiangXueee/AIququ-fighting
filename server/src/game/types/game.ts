@@ -1,6 +1,7 @@
 export type PlayerSide = 'red' | 'blue';
 
 export type GamePhase =
+  | 'theme_select'
   | 'answering'
   | 'evaluating'
   | 'showing_values'
@@ -32,6 +33,7 @@ export interface RoundResult {
 export interface Room {
   roomId: string;
   players: { red: Player | null; blue: Player | null };
+  themeId: string | null;
   topics: string[];
   answers: { red: (string | null)[]; blue: (string | null)[] };
   submitted: { red: boolean; blue: boolean };
@@ -42,5 +44,5 @@ export interface Room {
   gameOver: boolean;
   winner: PlayerSide | null;
   nextRoundReady: { red: boolean; blue: boolean };
-  restartRequest: { by: PlayerSide; option: 'same_topics' | 'new_topics' } | null;
+  restartRequest: { by: PlayerSide; themeId: string } | null;
 }

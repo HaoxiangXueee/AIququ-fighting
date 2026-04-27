@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnswerValues } from './types/game';
+import { getTheme } from './themes/registry';
 
 interface EvaluateResult {
   red: { relevance: number; power: number };
@@ -51,28 +52,15 @@ export class LlmService {
     topic: string,
     redAnswer: string,
     blueAnswer: string,
+    themeId: string,
   ): Promise<{
     red: AnswerValues;
     blue: AnswerValues;
     redReason: string;
     blueReason: string;
   }> {
-    const prompt = `你是一个斗蛐蛐游戏的裁判。两位玩家针对同一个主题给出答案，请评估每个答案：
-
-1. 相关系数 (0.1-10)：答案与主题的相关程度。完全跑题0.1，勉强相关2-3，比较相关4-6，高度相关7-8，完美契合9-10。
-2. 夯度/力度 (5-100)：答案的"战斗力"，考虑知名度、影响力、经典程度。冷门5-20，一般21-40，较知名41-60，高度知名61-80，殿堂级81-100。
-
-主题：${topic}
-红方答案：${redAnswer}
-蓝方答案：${blueAnswer}
-
-请以JSON格式返回，不要包含其他文字：
-{
-  "red": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },
-  "blue": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },
-  "redReason": "<一句话说明红方评分理由>",
-  "blueReason": "<一句话说明蓝方评分理由>"
-}`;
+    const theme = getTheme(themeId);
+    const prompt = theme.prompts.evaluateValues(topic, redAnswer, blueAnswer);
 
     const content = await this.callDeepSeek(prompt);
     const result: EvaluateResult = JSON.parse(content);
@@ -104,24 +92,10 @@ export class LlmService {
     blueAnswer: string,
     redValues: AnswerValues,
     blueValues: AnswerValues,
+    themeId: string,
   ): Promise<{ narrative: string; winner: 'red' | 'blue' }> {
-    const prompt = `你是斗蛐蛐游戏的解说员。两位玩家围绕同一主题给出答案，已评估出战斗力。请撰写精彩对战解说并判定胜负。
-
-规则：
-- 战斗力 = 相关系数 × 夯度，高者有优势但非必胜
-- 解说要生动有趣，带游戏圈梗和比喻，约500字
-- 必须判定一个胜者，不允许平局
-- 最后用"【判定】红方胜/蓝方胜"结尾
-
-主题：${topic}
-红方答案：${redAnswer}  战斗力：${redValues.battlePower}
-蓝方答案：${blueAnswer}  战斗力：${blueValues.battlePower}
-
-请以JSON格式返回：
-{
-  "narrative": "<约500字战斗解说>",
-  "winner": "red" 或 "blue"
-}`;
+    const theme = getTheme(themeId);
+    const prompt = theme.prompts.generateBattle(topic, redAnswer, blueAnswer, redValues, blueValues);
 
     const content = await this.callDeepSeek(prompt);
     const result: BattleResult = JSON.parse(content);

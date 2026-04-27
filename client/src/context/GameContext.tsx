@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { GameState, GamePhase, PlayerSide, AnswerValues, RoundResult } from '../types/game';
+import { GameState, GamePhase, PlayerSide, AnswerValues, RoundResult, ThemeInfo } from '../types/game';
 import { useSocket } from '../hooks/useSocket';
 
 const initialState: GameState = {
@@ -9,6 +9,8 @@ const initialState: GameState = {
   myNickname: '',
   redPlayer: null,
   bluePlayer: null,
+  availableThemes: [],
+  selectedTheme: null,
   topics: [],
   currentRound: 0,
   roundResults: [],
@@ -25,9 +27,10 @@ const initialState: GameState = {
 interface GameContextValue extends GameState {
   createRoom: (nickname: string) => void;
   joinRoom: (roomId: string, nickname: string) => void;
+  selectTheme: (themeId: string) => void;
   submitAnswers: (answers: [string, string, string]) => void;
   nextRound: () => void;
-  restartGame: (option: 'same_topics' | 'new_topics') => void;
+  restartGame: (themeId: string) => void;
   confirmRestart: () => void;
   clearError: () => void;
 }
@@ -40,6 +43,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socketRef,
     createRoom,
     joinRoom,
+    selectTheme,
     submitAnswers,
     nextRound,
     restartGame,
@@ -61,15 +65,35 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
 
     socket.on(
+      'opponent_joined',
+      (data: { availableThemes: ThemeInfo[]; redPlayer: string; bluePlayer: string }) => {
+        setState((prev) => ({
+          ...prev,
+          phase: 'theme_select' as GamePhase,
+          availableThemes: data.availableThemes,
+          redPlayer: data.redPlayer,
+          bluePlayer: data.bluePlayer,
+        }));
+      },
+    );
+
+    socket.on(
       'game_start',
-      (data: { topics: string[]; redPlayer: string; bluePlayer: string }) => {
+      (data: { topics: string[]; redPlayer: string; bluePlayer: string; themeId: string; themeName: string }) => {
         setState((prev) => {
+          const selectedTheme = prev.availableThemes.find(t => t.id === data.themeId) || {
+            id: data.themeId,
+            name: data.themeName,
+            description: '',
+            icon: '',
+          };
           return {
             ...prev,
             phase: 'answering' as GamePhase,
             topics: data.topics,
             redPlayer: data.redPlayer,
             bluePlayer: data.bluePlayer,
+            selectedTheme,
             currentRound: 0,
             opponentSubmitted: false,
             currentRoundValues: null,
@@ -193,10 +217,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
     );
 
-    socket.on('restart_requested', (data: { by: PlayerSide; option: 'same_topics' | 'new_topics' }) => {
+    socket.on('restart_requested', (data: { by: PlayerSide; themeId: string; themeName: string }) => {
       setState((prev) => ({
         ...prev,
-        restartRequested: { by: data.by, option: data.option },
+        restartRequested: { by: data.by, themeId: data.themeId, themeName: data.themeName },
       }));
     });
 
@@ -225,6 +249,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     return () => {
       socket.off('room_created');
+      socket.off('opponent_joined');
       socket.off('game_start');
       socket.off('opponent_submitted');
       socket.off('opponent_next_ready');
@@ -276,6 +301,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ...state,
         createRoom: handleCreateRoom,
         joinRoom: handleJoinRoom,
+        selectTheme,
         submitAnswers,
         nextRound: handleNextRound,
         restartGame,

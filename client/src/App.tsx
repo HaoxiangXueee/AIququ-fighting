@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import { Lobby, Waiting } from './components/Lobby';
+import { ThemeSelect } from './components/ThemeSelect';
 import { AnswerForm } from './components/AnswerForm';
 import { BattleCard } from './components/BattleCard';
 import { BattleReport } from './components/BattleReport';
@@ -27,6 +28,7 @@ function Game() {
 
       {phase === 'lobby' && <Lobby />}
       {phase === 'waiting' && <Waiting />}
+      {phase === 'theme_select' && <ThemeSelect />}
 
       {(phase === 'answering' || phase === 'evaluating' || phase === 'showing_values' || phase === 'showing_battle' || phase === 'round_end' || phase === 'game_over') && (
         <div className="game-area">

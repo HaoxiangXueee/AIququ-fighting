@@ -9,6 +9,7 @@ export function GameStatus() {
     scores,
     roundResults,
     currentRound,
+    availableThemes,
     restartGame,
     confirmRestart,
     restartRequested,
@@ -63,6 +64,7 @@ export function GameStatus() {
   if (isGameOver) {
     const gameWinner = scores.red >= 2 ? 'red' : 'blue';
     const iWon = gameWinner === mySide;
+    const isHost = mySide === 'red';
 
     return (
       <div className="game-status">
@@ -77,9 +79,7 @@ export function GameStatus() {
             <p className="restart-info">
               {restartRequested.by === mySide
                 ? '等待对手确认重开...'
-                : `对手请求${
-                    restartRequested.option === 'same_topics' ? '同题目' : '换题目'
-                  }再来，是否同意？`}
+                : `对手请求以「${restartRequested.themeName}」主题重开，是否同意？`}
             </p>
             {restartRequested.by !== mySide && (
               <button className="btn btn-primary" onClick={confirmRestart}>
@@ -88,13 +88,26 @@ export function GameStatus() {
             )}
           </div>
         ) : (
-          <div className="restart-options">
-            <button className="btn btn-red" onClick={() => restartGame('same_topics')}>
-              同题再战
-            </button>
-            <button className="btn btn-blue" onClick={() => restartGame('new_topics')}>
-              换题再战
-            </button>
+          <div className="restart-section">
+            {isHost ? (
+              <>
+                <p className="restart-label">选择主题再来一局</p>
+                <div className="theme-grid restart-theme-grid">
+                  {availableThemes.map((theme) => (
+                    <div
+                      key={theme.id}
+                      className="theme-card restart-theme-card"
+                      onClick={() => restartGame(theme.id)}
+                    >
+                      <span className="theme-card-icon">{theme.icon}</span>
+                      <span className="theme-card-name">{theme.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="restart-label waiting">等待房主选择主题重开...</p>
+            )}
           </div>
         )}
       </div>

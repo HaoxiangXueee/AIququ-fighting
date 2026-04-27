@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { TOPIC_POOL } from './topics';
+import { getTheme, getAvailableThemes } from './themes/registry';
+import { ThemeInfo } from './themes/types';
 
 const ROUNDS_PER_GAME = 3;
 const MAX_ANSWER_LENGTH = 100;
 
 @Injectable()
 export class GameService {
-  drawTopics(): string[] {
-    const shuffled = [...TOPIC_POOL];
+  drawTopics(themeId: string): string[] {
+    const theme = getTheme(themeId);
+    const shuffled = [...theme.topics];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -43,5 +45,9 @@ export class GameService {
     // All 3 rounds played
     if (currentRound >= ROUNDS_PER_GAME) return true;
     return false;
+  }
+
+  getAvailableThemes(): ThemeInfo[] {
+    return getAvailableThemes();
   }
 }
