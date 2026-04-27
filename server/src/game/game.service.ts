@@ -1,25 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { getTheme, getAvailableThemes } from './themes/registry';
 import { ThemeInfo } from './themes/types';
+import { PlayerSide, ALL_SIDES } from './types/game';
 
-const ROUNDS_PER_GAME = 3;
 const MAX_ANSWER_LENGTH = 100;
 
 @Injectable()
 export class GameService {
-  drawTopics(themeId: string): string[] {
+  drawTopics(themeId: string, totalRounds: number): string[] {
     const theme = getTheme(themeId);
     const shuffled = [...theme.topics];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    return shuffled.slice(0, ROUNDS_PER_GAME);
+    return shuffled.slice(0, totalRounds);
   }
 
-  validateAnswers(answers: string[]): { valid: boolean; message?: string } {
-    if (!Array.isArray(answers) || answers.length !== ROUNDS_PER_GAME) {
-      return { valid: false, message: '需要提交3个答案' };
+  validateAnswers(answers: string[], totalRounds: number): { valid: boolean; message?: string } {
+    if (!Array.isArray(answers) || answers.length !== totalRounds) {
+      return { valid: false, message: `需要提交${totalRounds}个答案` };
     }
     for (let i = 0; i < answers.length; i++) {
       const answer = answers[i];
@@ -33,18 +33,46 @@ export class GameService {
     return { valid: true };
   }
 
-  checkGameWinner(scores: { red: number; blue: number }): 'red' | 'blue' | null {
-    if (scores.red >= 2) return 'red';
-    if (scores.blue >= 2) return 'blue';
-    return null;
+  // Winner = most wins; tiebreak by totalBattlePower
+  checkGameWinner(
+    scores: Record<PlayerSide, number>,
+    totalBattlePower: Record<PlayerSide, number>,
+    activeSides: PlayerSide[],
+  ): PlayerSide | null {
+    let maxWins = -1;
+    let candidates: PlayerSide[] = [];
+
+    for (const side of activeSides) {
+      const wins = scores[side];
+      if (wins > maxWins) {
+        maxWins = wins;
+        candidates = [side];
+      } else if (wins === maxWins) {
+        candidates.push(side);
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    if (candidates.length === 1) return candidates[0];
+
+    // Tiebreak by totalBattlePower
+    let maxPower = -1;
+    let winner: PlayerSide | null = null;
+    for (const side of candidates) {
+      const power = totalBattlePower[side];
+      if (power > maxPower) {
+        maxPower = power;
+        winner = side;
+      }
+    }
+
+    return winner;
   }
 
-  isGameComplete(currentRound: number, scores: { red: number; blue: number }): boolean {
-    // 2-0 early end
-    if (scores.red >= 2 || scores.blue >= 2) return true;
-    // All 3 rounds played
-    if (currentRound >= ROUNDS_PER_GAME) return true;
-    return false;
+  isGameComplete(currentRound: number, totalRounds: number): boolean {
+    // All rounds must be played — no early end in multiplayer
+    return currentRound >= totalRounds - 1;
   }
 
   getAvailableThemes(): ThemeInfo[] {

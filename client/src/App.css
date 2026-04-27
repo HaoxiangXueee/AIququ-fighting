@@ -24,6 +24,18 @@
   --blue-dark: #0077b6;
   --blue-glow: rgba(0, 180, 216, 0.35);
 
+  /* Green faction — jade / 翡翠 */
+  --green: #2ecc71;
+  --green-bright: #55efc4;
+  --green-dark: #1e8449;
+  --green-glow: rgba(46, 204, 113, 0.35);
+
+  /* Yellow faction — amber / 琥珀 */
+  --yellow: #f1c40f;
+  --yellow-bright: #ffe066;
+  --yellow-dark: #b8960b;
+  --yellow-glow: rgba(241, 196, 15, 0.35);
+
   /* Gold — the accent of victory / 金 */
   --gold: #d4a017;
   --gold-bright: #f0c040;
@@ -93,7 +105,9 @@ body::before {
   background:
     radial-gradient(ellipse 80% 50% at 50% 0%, rgba(212, 160, 23, 0.06) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 20% 80%, rgba(230, 57, 70, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0, 180, 216, 0.04) 0%, transparent 50%);
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0, 180, 216, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 30% at 50% 60%, rgba(46, 204, 113, 0.03) 0%, transparent 40%),
+    radial-gradient(ellipse 40% 30% at 30% 40%, rgba(241, 196, 15, 0.03) 0%, transparent 40%);
   pointer-events: none;
   z-index: 0;
 }
@@ -424,6 +438,14 @@ body::before {
   color: var(--blue-bright);
 }
 
+.player.green {
+  color: var(--green-bright);
+}
+
+.player.yellow {
+  color: var(--yellow-bright);
+}
+
 .vs {
   color: var(--gold-dim);
   font-weight: 800;
@@ -451,6 +473,16 @@ body::before {
   box-shadow: 0 0 8px var(--blue-glow);
 }
 
+.side-dot.green {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+}
+
+.side-dot.yellow {
+  background: var(--yellow);
+  box-shadow: 0 0 8px var(--yellow-glow);
+}
+
 .side-badge {
   display: inline-block;
   padding: 3px 14px;
@@ -473,6 +505,16 @@ body::before {
   box-shadow: 0 2px 12px var(--blue-glow);
 }
 
+.side-badge.green {
+  background: linear-gradient(135deg, var(--green), var(--green-dark));
+  box-shadow: 0 2px 12px var(--green-glow);
+}
+
+.side-badge.yellow {
+  background: linear-gradient(135deg, var(--yellow), var(--yellow-dark));
+  box-shadow: 0 2px 12px var(--yellow-glow);
+}
+
 .score-display {
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 800;
@@ -490,6 +532,16 @@ body::before {
 .score-blue {
   color: var(--blue-bright);
   text-shadow: 0 0 16px var(--blue-glow);
+}
+
+.score-green {
+  color: var(--green-bright);
+  text-shadow: 0 0 16px var(--green-glow);
+}
+
+.score-yellow {
+  color: var(--yellow-bright);
+  text-shadow: 0 0 16px var(--yellow-glow);
 }
 
 .score-colon {
@@ -537,6 +589,20 @@ body::before {
   color: #fff;
   border-color: var(--blue);
   box-shadow: 0 0 12px var(--blue-glow);
+}
+
+.round-dot.green {
+  background: linear-gradient(135deg, var(--green), var(--green-dark));
+  color: #fff;
+  border-color: var(--green);
+  box-shadow: 0 0 12px var(--green-glow);
+}
+
+.round-dot.yellow {
+  background: linear-gradient(135deg, var(--yellow), var(--yellow-dark));
+  color: #000;
+  border-color: var(--yellow);
+  box-shadow: 0 0 12px var(--yellow-glow);
 }
 
 @keyframes pulseGlow {
@@ -714,9 +780,21 @@ body::before {
 .battle-cards {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 0;
+  gap: var(--space-md);
   align-items: stretch;
+}
+
+/* Dynamic grid based on player count */
+.battle-cards.players-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.battle-cards.players-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.battle-cards.players-4 {
+  grid-template-columns: 1fr 1fr;
 }
 
 .battle-card {
@@ -736,32 +814,18 @@ body::before {
 
 .battle-card.red {
   border-top-color: var(--red);
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-}
-
-.battle-card.red::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(180deg, transparent, var(--red-glow), transparent);
 }
 
 .battle-card.blue {
   border-top-color: var(--blue);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
-.battle-card.blue::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(180deg, transparent, var(--blue-glow), transparent);
+.battle-card.green {
+  border-top-color: var(--green);
+}
+
+.battle-card.yellow {
+  border-top-color: var(--yellow);
 }
 
 @keyframes cardSlideIn {
@@ -785,6 +849,18 @@ body::before {
   font-weight: 600;
   font-size: 15px;
   font-family: var(--font-mono);
+}
+
+.rank-badge {
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--bg-void);
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  border-radius: var(--radius-sm);
+  letter-spacing: 1px;
 }
 
 .card-answer {
@@ -1170,6 +1246,144 @@ body::before {
   text-align: center;
 }
 
+/* === Waiting Room — Player Slots === */
+.waiting-players {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 100%;
+  max-width: 400px;
+}
+
+.waiting-player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-deep);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  transition: all 0.3s ease;
+}
+
+.waiting-player.empty {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.waiting-player-name {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* === Lobby Config — Player/Round Selection === */
+.lobby-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: 360px;
+}
+
+.config-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.config-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+}
+
+.config-buttons {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.config-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background: var(--bg-deep);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.config-btn:hover {
+  border-color: var(--gold-dim);
+  color: var(--text-primary);
+}
+
+.config-btn.active {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  color: var(--bg-void);
+  border-color: var(--gold);
+  box-shadow: 0 2px 12px var(--gold-glow);
+}
+
+/* === Final Ranking — Game Over Display === */
+.final-ranking {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ranking-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-deep);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.3s ease;
+}
+
+.ranking-row.me {
+  border-color: var(--gold-dim);
+  background: linear-gradient(135deg, rgba(212, 160, 23, 0.08), var(--bg-deep));
+}
+
+.ranking-pos {
+  font-size: 16px;
+  font-weight: 800;
+  min-width: 28px;
+  text-align: center;
+}
+
+.ranking-name {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.ranking-wins {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--gold-bright);
+  font-weight: 700;
+}
+
+.ranking-power {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* Restart theme cards — compact version */
 .restart-section {
   display: flex;
@@ -1232,11 +1446,15 @@ body::before {
     padding: var(--space-lg);
   }
 
-  .battle-cards {
-    grid-template-columns: 1fr auto 1fr;
+  .battle-cards.players-3 {
+    grid-template-columns: 1fr;
   }
 
-  .batttle-card {
+  .battle-cards.players-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .battle-card {
     padding: var(--space-md);
   }
 }
@@ -1280,34 +1498,10 @@ body::before {
     gap: var(--space-sm);
   }
 
-  .battle-card.red {
-    border-radius: var(--radius-lg);
-  }
-
-  .battle-card.blue {
-    border-radius: var(--radius-lg);
-  }
-
-  .battle-card.red::after,
-  .battle-card.blue::after {
-    display: none;
-  }
-
-  .vs-divider {
-    width: 100%;
-    height: 40px;
-    font-size: 18px;
-  }
-
-  .vs-divider::before {
-    top: 50%;
-    bottom: auto;
-    left: 10%;
-    right: 10%;
-    width: auto;
-    height: 1px;
-    transform: translateY(-50%);
-    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+  .battle-cards.players-2,
+  .battle-cards.players-3,
+  .battle-cards.players-4 {
+    grid-template-columns: 1fr;
   }
 
   .card-stats {

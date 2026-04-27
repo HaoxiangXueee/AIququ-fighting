@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useGame } from '../context/GameContext';
+import { PlayerSide, SIDE_LABELS } from '../types/game';
 
 export function Lobby() {
   const { createRoom, joinRoom } = useGame();
   const [nickname, setNickname] = useState('');
   const [roomId, setRoomId] = useState('');
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
+  const [maxPlayers, setMaxPlayers] = useState(2);
+  const [totalRounds, setTotalRounds] = useState(3);
 
   const handleCreate = () => {
     if (nickname.trim()) {
-      createRoom(nickname.trim());
+      createRoom(nickname.trim(), maxPlayers, totalRounds);
     }
   };
 
@@ -30,10 +33,10 @@ export function Lobby() {
         <p className="lobby-subtitle">填答案 / 拼脑洞 / AI判胜负</p>
         <div className="lobby-buttons">
           <button className="btn btn-red" onClick={() => setMode('create')}>
-            开擂（红方）
+            开擂（房主）
           </button>
           <button className="btn btn-blue" onClick={() => setMode('join')}>
-            打擂（蓝方）
+            打擂（加入）
           </button>
         </div>
       </div>
@@ -55,6 +58,36 @@ export function Lobby() {
           maxLength={20}
           autoFocus
         />
+        <div className="lobby-config">
+          <div className="config-item">
+            <label className="config-label">人数上限</label>
+            <div className="config-buttons">
+              {[2, 3, 4].map(n => (
+                <button
+                  key={n}
+                  className={`config-btn ${maxPlayers === n ? 'active' : ''}`}
+                  onClick={() => setMaxPlayers(n)}
+                >
+                  {n}人
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="config-item">
+            <label className="config-label">回合数</label>
+            <div className="config-buttons">
+              {[2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  className={`config-btn ${totalRounds === n ? 'active' : ''}`}
+                  onClick={() => setTotalRounds(n)}
+                >
+                  {n}局
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         <div className="lobby-buttons">
           <button className="btn btn-red" onClick={handleCreate} disabled={!nickname.trim()}>
             开擂
@@ -70,7 +103,7 @@ export function Lobby() {
   return (
     <div className="lobby">
       <h1>打擂</h1>
-      <p className="lobby-hint">你将成为蓝方挑战者</p>
+      <p className="lobby-hint">输入擂台号加入对战</p>
       <input
         className="input"
         type="text"
@@ -106,14 +139,50 @@ export function Lobby() {
 }
 
 export function Waiting() {
-  const { roomId } = useGame();
+  const { roomId, players, maxPlayers, startGame, mySide } = useGame();
+  const isHost = mySide === 'red';
+  const canStart = players.length >= 2;
 
   return (
     <div className="lobby">
-      <h1>等待挑战者</h1>
+      <h1>等待玩家</h1>
       <p className="room-code">擂台号: {roomId}</p>
-      <p className="room-hint">将擂台号分享给对手即可开始对战</p>
-      <p className="room-hint">你是红方擂主，对手将作为蓝方挑战者加入</p>
+      <p className="room-hint">将擂台号分享给对手即可加入对战</p>
+
+      <div className="waiting-players">
+        {players.map(p => (
+          <div key={p.side} className={`waiting-player ${p.side}`}>
+            <span className={`side-dot ${p.side}`}></span>
+            <span className="waiting-player-name">{p.nickname}</span>
+            <span className={`side-badge ${p.side}`}>{SIDE_LABELS[p.side as PlayerSide]}</span>
+          </div>
+        ))}
+        {Array.from({ length: maxPlayers - players.length }).map((_, i) => {
+          const nextSide = ['red', 'blue', 'green', 'yellow'][players.length + i];
+          return (
+            <div key={nextSide} className="waiting-player empty">
+              <span className={`side-dot ${nextSide}`}></span>
+              <span className="waiting-player-name">等待加入...</span>
+              <span className={`side-badge ${nextSide}`}>{SIDE_LABELS[nextSide as PlayerSide]}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="room-hint">已加入 {players.length}/{maxPlayers} 人</p>
+
+      {isHost && (
+        <button
+          className="btn btn-primary"
+          onClick={startGame}
+          disabled={!canStart}
+        >
+          {canStart ? '开始游戏' : '至少需要2名玩家'}
+        </button>
+      )}
+      {!isHost && (
+        <p className="room-hint">等待房主开始游戏...</p>
+      )}
     </div>
   );
 }

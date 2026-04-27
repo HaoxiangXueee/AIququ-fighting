@@ -1,5 +1,12 @@
 import { ThemeDefinition } from './types';
 
+const SIDE_NAMES: Record<string, string> = {
+  red: '红方',
+  blue: '蓝方',
+  green: '绿方',
+  yellow: '黄方',
+};
+
 export const NBA_THEME: ThemeDefinition = {
   id: 'nba',
   name: 'NBA',
@@ -60,42 +67,59 @@ export const NBA_THEME: ThemeDefinition = {
   ],
 
   prompts: {
-    evaluateValues: (topic, redAnswer, blueAnswer) =>
-      `你是一个"NBA斗蛐蛐"的裁判。两位玩家针对同一个NBA主题各说出一位球员名字，请评估每位球员：
+    evaluateValues: (topic, answers) => {
+      const answerLines = Object.entries(answers)
+        .map(([side, answer]) => `${SIDE_NAMES[side] || side}球员：${answer}`)
+        .join('\n');
+
+      const resultFields = Object.keys(answers)
+        .map(side => {
+          const name = SIDE_NAMES[side] || side;
+          return `  "${side}": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },\n  "${side}Reason": "<一句话说明${name}评分理由>"`;
+        })
+        .join(',\n');
+
+      return `你是一个"NBA斗蛐蛐"的裁判。多位玩家针对同一个NBA主题各说出一位球员名字，请评估每位球员：
 
 1. 相关系数 (0.1-10)：球员与主题的相关程度。完全跑题0.1，勉强相关2-3，比较相关4-6，高度相关7-8，完美契合9-10。
 2. 篮球成就值 (5-100)：该球员的"战斗力"，考虑荣誉、数据、影响力、传奇度。边缘5-20，普通21-40，明星41-60，巨星61-80，GOAT级别81-100。
 
 主题：${topic}
-红方球员：${redAnswer}
-蓝方球员：${blueAnswer}
+${answerLines}
 
 请以JSON格式返回，不要包含其他文字：
 {
-  "red": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },
-  "blue": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },
-  "redReason": "<一句话说明红方评分理由>",
-  "blueReason": "<一句话说明蓝方评分理由>"
-}`,
+${resultFields}
+}`;
+    },
 
-    generateBattle: (topic, redAnswer, blueAnswer, redValues, blueValues) =>
-      `你是"NBA斗蛐蛐"的解说员。两位玩家围绕同一NBA主题各选出一位球员，已评估出战斗力。请撰写精彩的篮球对决解说并判定胜负。
+    generateBattle: (topic, answers, values) => {
+      const playerLines = Object.entries(answers)
+        .map(([side, answer]) => {
+          const name = SIDE_NAMES[side] || side;
+          const bp = values[side]?.battlePower || 0;
+          return `${name}球员：${answer}  战斗力：${bp}`;
+        })
+        .join('\n');
+
+      return `你是"NBA斗蛐蛐"的解说员。多位玩家围绕同一NBA主题各选出一位球员，已评估出战斗力。请撰写精彩的篮球群像对决解说并判定胜负。
 
 规则：
 - 战斗力 = 相关系数 × 篮球成就值，高者有优势但非必胜
-- 用NBA转播解说风格，要有激情和专业术语，约500字
+- 用NBA转播解说风格，要有激情和专业术语，约600字
 - 要引用真实数据和经典时刻，生动有趣
+- 所有球员都要在解说中出现
 - 必须判定一个胜者，不允许平局
-- 最后用"【判定】红方胜/蓝方胜"结尾
+- 最后用"【判定】红方胜/蓝方胜/绿方胜/黄方胜"结尾（根据实际参与方）
 
 主题：${topic}
-红方球员：${redAnswer}  战斗力：${redValues.battlePower}
-蓝方球员：${blueAnswer}  战斗力：${blueValues.battlePower}
+${playerLines}
 
 请以JSON格式返回：
 {
-  "narrative": "<约500字NBA对决解说>",
-  "winner": "red" 或 "blue"
-}`,
+  "narrative": "<约600字NBA对决解说>",
+  "winner": "red" 或 "blue" 或 "green" 或 "yellow"（战斗力最高者的side）
+}`;
+    },
   },
 };

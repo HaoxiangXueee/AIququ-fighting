@@ -1,5 +1,5 @@
 import { useGame } from '../context/GameContext';
-import { AnswerValues } from '../types/game';
+import { AnswerValues, PlayerSide, SIDE_LABELS } from '../types/game';
 
 function ValueCard({
   side,
@@ -7,18 +7,21 @@ function ValueCard({
   values,
   reason,
   answer,
+  rank,
 }: {
-  side: 'red' | 'blue';
+  side: string;
   nickname: string;
   values: AnswerValues;
   reason: string;
   answer: string;
+  rank: number;
 }) {
   return (
     <div className={`battle-card ${side}`}>
       <div className="card-header">
-        <span className={`side-badge ${side}`}>{side === 'red' ? '红方' : '蓝方'}</span>
+        <span className={`side-badge ${side}`}>{SIDE_LABELS[side as PlayerSide]}</span>
         <span className="card-nickname">{nickname}</span>
+        {rank === 1 && <span className="rank-badge">TOP</span>}
       </div>
       <div className="card-answer">"{answer}"</div>
       <div className="card-stats">
@@ -41,27 +44,41 @@ function ValueCard({
 }
 
 export function BattleCard() {
-  const { currentRoundValues, redPlayer, bluePlayer } = useGame();
+  const { currentRoundValues, players, currentRoundBattle } = useGame();
 
   if (!currentRoundValues) return null;
 
+  // Build list of active players with their values, sorted by battlePower
+  const cardData = players
+    .filter(p => currentRoundValues.values[p.side] !== undefined)
+    .map(p => {
+      const rankIndex = currentRoundBattle?.rankOrder
+        ? currentRoundBattle.rankOrder.indexOf(p.side) + 1
+        : 0;
+      return {
+        side: p.side,
+        nickname: p.nickname,
+        values: currentRoundValues.values[p.side],
+        reason: currentRoundValues.reasons[p.side] || '',
+        answer: currentRoundValues.answers[p.side] || '',
+        rank: rankIndex,
+      };
+    })
+    .sort((a, b) => b.values.battlePower - a.values.battlePower);
+
   return (
-    <div className="battle-cards">
-      <ValueCard
-        side="red"
-        nickname={redPlayer || '红方'}
-        values={currentRoundValues.red}
-        reason={currentRoundValues.reasons.red}
-        answer={currentRoundValues.answers.red}
-      />
-      <div className="vs-divider">VS</div>
-      <ValueCard
-        side="blue"
-        nickname={bluePlayer || '蓝方'}
-        values={currentRoundValues.blue}
-        reason={currentRoundValues.reasons.blue}
-        answer={currentRoundValues.answers.blue}
-      />
+    <div className={`battle-cards players-${cardData.length}`}>
+      {cardData.map(data => (
+        <ValueCard
+          key={data.side}
+          side={data.side}
+          nickname={data.nickname}
+          values={data.values}
+          reason={data.reason}
+          answer={data.answer}
+          rank={data.rank}
+        />
+      ))}
     </div>
   );
 }

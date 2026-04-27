@@ -9,7 +9,7 @@ import { Server, Socket } from 'socket.io';
 import { RoomService } from './room.service';
 import { LlmService } from './llm.service';
 import { GameService } from './game.service';
-import { PlayerSide, RoundResult, Room } from './types/game';
+import { PlayerSide, RoundResult, Room, ALL_SIDES, SIDE_LABELS } from './types/game';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -33,35 +33,103 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const result = this.roomService.removePlayer(client.id);
     if (result) {
       client.leave(result.roomId);
-      if (result.opponentId) {
-        this.server.to(result.opponentId).emit('opponent_left');
+      if (result.remainingSides.length > 0) {
+        // Broadcast to remaining players
+        this.server.to(result.roomId).emit('player_left', {
+          remainingSides: result.remainingSides,
+          remainingPlayers: result.remainingSides.length,
+        });
+
+        // If only 1 active player remains during a game, terminate
+        if (result.remainingSides.length < 2) {
+          this.server.to(result.roomId).emit('game_cancelled', {
+            message: '对手已断开连接，游戏结束',
+          });
+        }
       }
     }
   }
 
   @SubscribeMessage('create_room')
-  handleCreateRoom(client: Socket, payload: { nickname: string }) {
-    const room = this.roomService.createRoom(client.id, payload.nickname);
+  handleCreateRoom(
+    client: Socket,
+    payload: { nickname: string; maxPlayers: number; totalRounds: number },
+  ) {
+    const room = this.roomService.createRoom(
+      client.id,
+      payload.nickname,
+      payload.maxPlayers || 2,
+      payload.totalRounds || 3,
+    );
     client.join(room.roomId);
-    client.emit('room_created', { roomId: room.roomId });
+    client.emit('room_created', {
+      roomId: room.roomId,
+      maxPlayers: room.maxPlayers,
+      totalRounds: room.totalRounds,
+    });
   }
 
   @SubscribeMessage('join_room')
   handleJoinRoom(client: Socket, payload: { roomId: string; nickname: string }) {
-    const room = this.roomService.joinRoom(payload.roomId, client.id, payload.nickname);
-    if (!room) {
-      client.emit('error', { message: '房间不存在或已满' });
+    const result = this.roomService.joinRoom(payload.roomId, client.id, payload.nickname);
+    if (!result) {
+      client.emit('error', { message: '房间不存在、已满或游戏已开始' });
       return;
     }
 
+    const { room, side } = result;
     client.join(room.roomId);
 
-    // Send opponent_joined with available themes instead of starting game immediately
+    // Build players list for all current players
+    const playersList = room.players.map(p => ({
+      side: p.side,
+      nickname: p.nickname,
+    }));
+
     const availableThemes = this.gameService.getAvailableThemes();
-    this.server.to(room.roomId).emit('opponent_joined', {
+
+    // Notify all players in the room
+    this.server.to(room.roomId).emit('player_joined', {
+      players: playersList,
+      maxPlayers: room.maxPlayers,
+      totalRounds: room.totalRounds,
       availableThemes,
-      redPlayer: room.players.red?.nickname,
-      bluePlayer: room.players.blue?.nickname,
+      yourSide: side, // Only meaningful to the joining player
+    });
+  }
+
+  @SubscribeMessage('start_game')
+  handleStartGame(client: Socket) {
+    const room = this.roomService.getRoomBySocketId(client.id);
+    if (!room) {
+      client.emit('error', { message: '你不在任何房间中' });
+      return;
+    }
+
+    // Only host can start
+    if (!this.roomService.isHost(room, client.id)) {
+      client.emit('error', { message: '只有房主可以开始游戏' });
+      return;
+    }
+
+    if (!this.roomService.canStartGame(room)) {
+      client.emit('error', { message: '至少需要2名玩家才能开始' });
+      return;
+    }
+
+    // Move to theme_select phase
+    room.phase = 'theme_select';
+    const availableThemes = this.gameService.getAvailableThemes();
+    const playersList = room.players.map(p => ({
+      side: p.side,
+      nickname: p.nickname,
+    }));
+
+    this.server.to(room.roomId).emit('game_theme_select', {
+      players: playersList,
+      maxPlayers: room.maxPlayers,
+      totalRounds: room.totalRounds,
+      availableThemes,
     });
   }
 
@@ -73,9 +141,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Only red player can select theme
-    const side = this.roomService.getPlayerSide(room, client.id);
-    if (side !== 'red') {
+    // Only host can select theme
+    if (!this.roomService.isHost(room, client.id)) {
       client.emit('error', { message: '只有房主可以选择主题' });
       return;
     }
@@ -85,18 +152,27 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Set theme and draw topics
+    // Set theme and draw topics based on totalRounds
     room.themeId = payload.themeId;
-    room.topics = this.gameService.drawTopics(payload.themeId);
+    room.topics = this.gameService.drawTopics(payload.themeId, room.totalRounds);
 
-    const themeName = this.gameService.getAvailableThemes().find(t => t.id === payload.themeId)?.name || payload.themeId;
+    const themeName =
+      this.gameService
+        .getAvailableThemes()
+        .find(t => t.id === payload.themeId)?.name || payload.themeId;
+
+    const playersList = room.players.map(p => ({
+      side: p.side,
+      nickname: p.nickname,
+    }));
 
     this.server.to(room.roomId).emit('game_start', {
       topics: room.topics,
-      redPlayer: room.players.red?.nickname,
-      bluePlayer: room.players.blue?.nickname,
+      players: playersList,
       themeId: payload.themeId,
       themeName,
+      maxPlayers: room.maxPlayers,
+      totalRounds: room.totalRounds,
     });
   }
 
@@ -121,20 +197,23 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const success = this.roomService.submitAnswers(room, side, payload.answers);
     if (!success) {
-      const validation = this.gameService.validateAnswers(payload.answers);
+      const validation = this.gameService.validateAnswers(payload.answers, room.totalRounds);
       client.emit('error', { message: validation.message || '答案格式不正确' });
       return;
     }
 
-    // Notify opponent that this player submitted
-    const opponentSide: PlayerSide = side === 'red' ? 'blue' : 'red';
-    const opponentSocketId = room.players[opponentSide]?.socketId;
-    if (opponentSocketId) {
-      this.server.to(opponentSocketId).emit('opponent_submitted');
-    }
+    // Notify all players that this player submitted
+    const activeSides = this.roomService.getActiveSides(room);
+    const submittedCount = this.roomService.getSubmittedCount(room);
 
-    // If both submitted, run evaluation
-    if (this.roomService.bothSubmitted(room)) {
+    this.server.to(room.roomId).emit('player_submitted', {
+      side,
+      submittedCount,
+      totalPlayers: activeSides.length,
+    });
+
+    // If all active players submitted, run evaluation
+    if (this.roomService.allSubmitted(room)) {
       await this.runEvaluation(room);
     }
   }
@@ -142,9 +221,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private async runEvaluation(room: Room) {
     const roundIndex = room.currentRound;
     const topic = room.topics[roundIndex];
-    const redAnswer = room.answers.red[roundIndex]!;
-    const blueAnswer = room.answers.blue[roundIndex]!;
+    const activeSides = this.roomService.getActiveSides(room);
     const themeId = room.themeId!;
+
+    // Build answers for active players
+    const answers: Record<string, string> = {};
+    for (const side of activeSides) {
+      const answer = room.answers[side][roundIndex];
+      if (answer) {
+        answers[side] = answer;
+      }
+    }
 
     // Phase: evaluating
     room.phase = 'evaluating';
@@ -152,15 +239,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       // Step 1: Evaluate values
-      const evalResult = await this.llmService.evaluateValues(topic, redAnswer, blueAnswer, themeId);
+      const evalResult = await this.llmService.evaluateValues(topic, answers, themeId);
 
       // Show values
       room.phase = 'showing_values';
       this.server.to(room.roomId).emit('round_values', {
         roundIndex,
-        values: { red: evalResult.red, blue: evalResult.blue },
-        answers: { red: redAnswer, blue: blueAnswer },
-        reasons: { red: evalResult.redReason, blue: evalResult.blueReason },
+        values: evalResult.values,
+        answers,
+        reasons: evalResult.reasons,
       });
 
       // Step 2: Wait 3 seconds, then generate battle report
@@ -168,10 +255,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const battleResult = await this.llmService.generateBattle(
         topic,
-        redAnswer,
-        blueAnswer,
-        evalResult.red,
-        evalResult.blue,
+        answers,
+        evalResult.values,
         themeId,
       );
 
@@ -179,11 +264,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const roundResult: RoundResult = {
         roundIndex,
         topic,
-        answers: { red: redAnswer, blue: blueAnswer },
-        values: { red: evalResult.red, blue: evalResult.blue },
-        reasons: { red: evalResult.redReason, blue: evalResult.blueReason },
+        answers: answers as Record<PlayerSide, string>,
+        values: evalResult.values as Record<PlayerSide, typeof evalResult.values[string]>,
+        reasons: evalResult.reasons as Record<PlayerSide, string>,
         narrative: battleResult.narrative,
-        winner: battleResult.winner,
+        winner: battleResult.winner as PlayerSide,
+        rankOrder: battleResult.rankOrder as PlayerSide[],
       };
 
       this.roomService.addRoundResult(room, roundResult);
@@ -193,13 +279,32 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         roundIndex,
         narrative: battleResult.narrative,
         winner: battleResult.winner,
+        rankOrder: battleResult.rankOrder,
       });
 
       // If game is over, send game_over event
       if (room.gameOver) {
+        // Build final ranking
+        const finalRanking = [...room.players]
+          .filter(p => !room.disconnected[p.side])
+          .sort((a, b) => {
+            if (room.scores[b.side] !== room.scores[a.side]) {
+              return room.scores[b.side] - room.scores[a.side];
+            }
+            return room.totalBattlePower[b.side] - room.totalBattlePower[a.side];
+          })
+          .map(p => ({
+            side: p.side,
+            nickname: p.nickname,
+            wins: room.scores[p.side],
+            totalBattlePower: room.totalBattlePower[p.side],
+          }));
+
         this.server.to(room.roomId).emit('game_over', {
           winner: room.winner,
           scores: room.scores,
+          totalBattlePower: room.totalBattlePower,
+          finalRanking,
         });
       }
     } catch (err) {
@@ -229,16 +334,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    const bothReady = this.roomService.markNextRoundReady(room, side);
+    const allReady = this.roomService.markNextRoundReady(room, side);
+    const readyCount = this.roomService.getNextRoundReadyCount(room);
+    const activeSides = this.roomService.getActiveSides(room);
 
-    // Notify opponent that this player is ready for next round
-    const opponentSide: PlayerSide = side === 'red' ? 'blue' : 'red';
-    const opponentSocketId = room.players[opponentSide]?.socketId;
-    if (opponentSocketId) {
-      this.server.to(opponentSocketId).emit('opponent_next_ready');
-    }
+    // Notify all players
+    this.server.to(room.roomId).emit('player_next_ready', {
+      side,
+      readyCount,
+      totalPlayers: activeSides.length,
+    });
 
-    if (bothReady) {
+    if (allReady) {
       const advanced = this.roomService.advanceToNextRound(room);
       if (!advanced) return;
       // Notify clients which round is starting, then evaluate
@@ -276,17 +383,20 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.roomService.requestRestart(room, side, payload.themeId);
 
-    const themeName = this.gameService.getAvailableThemes().find(t => t.id === payload.themeId)?.name || payload.themeId;
+    const themeName =
+      this.gameService
+        .getAvailableThemes()
+        .find(t => t.id === payload.themeId)?.name || payload.themeId;
 
-    const opponentSide: PlayerSide = side === 'red' ? 'blue' : 'red';
-    const opponentSocketId = room.players[opponentSide]?.socketId;
-    if (opponentSocketId) {
-      this.server.to(opponentSocketId).emit('restart_requested', {
-        by: side,
-        themeId: payload.themeId,
-        themeName,
-      });
-    }
+    const confirmStatus = this.roomService.getRestartConfirmStatus(room);
+
+    // Notify all other players
+    this.server.to(room.roomId).emit('restart_requested', {
+      by: side,
+      themeId: payload.themeId,
+      themeName,
+      confirmStatus,
+    });
   }
 
   @SubscribeMessage('confirm_restart')
@@ -303,25 +413,41 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    // First, notify everyone about the confirmation progress
+    const confirmStatus = this.roomService.getRestartConfirmStatus(room);
+    this.server.to(room.roomId).emit('restart_confirm_progress', {
+      confirmer: side,
+      confirmStatus,
+    });
+
     const confirmed = this.roomService.confirmRestart(room, side);
     if (!confirmed) {
-      client.emit('error', { message: '无法确认重开' });
+      // Not all confirmed yet, that's okay
       return;
     }
 
-    const themeName = this.gameService.getAvailableThemes().find(t => t.id === room.themeId)?.name || room.themeId;
+    const themeName =
+      this.gameService
+        .getAvailableThemes()
+        .find(t => t.id === room.themeId)?.name || room.themeId;
+
+    const playersList = room.players.map(p => ({
+      side: p.side,
+      nickname: p.nickname,
+    }));
 
     this.server.to(room.roomId).emit('restart_confirmed');
     this.server.to(room.roomId).emit('game_start', {
       topics: room.topics,
-      redPlayer: room.players.red?.nickname,
-      bluePlayer: room.players.blue?.nickname,
+      players: playersList,
       themeId: room.themeId,
       themeName,
+      maxPlayers: room.maxPlayers,
+      totalRounds: room.totalRounds,
     });
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

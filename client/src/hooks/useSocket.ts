@@ -22,8 +22,8 @@ export function useSocket() {
   }, []);
 
   const createRoom = useCallback(
-    (nickname: string) => {
-      getSocket().emit('create_room', { nickname });
+    (nickname: string, maxPlayers: number, totalRounds: number) => {
+      getSocket().emit('create_room', { nickname, maxPlayers, totalRounds });
     },
     [getSocket],
   );
@@ -35,6 +35,10 @@ export function useSocket() {
     [getSocket],
   );
 
+  const startGame = useCallback(() => {
+    getSocket().emit('start_game');
+  }, [getSocket]);
+
   const selectTheme = useCallback(
     (themeId: string) => {
       getSocket().emit('select_theme', { themeId });
@@ -43,7 +47,7 @@ export function useSocket() {
   );
 
   const submitAnswers = useCallback(
-    (answers: [string, string, string]) => {
+    (answers: string[]) => {
       getSocket().emit('submit_answers', { answers });
     },
     [getSocket],
@@ -68,6 +72,7 @@ export function useSocket() {
     socketRef,
     createRoom,
     joinRoom,
+    startGame,
     selectTheme,
     submitAnswers,
     nextRound,

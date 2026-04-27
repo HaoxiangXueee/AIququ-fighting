@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { useGame } from '../context/GameContext';
+import { SIDE_LABELS, PlayerSide } from '../types/game';
 
 const MAX_LENGTH = 100;
 
 export function AnswerForm() {
-  const { topics, submitAnswers, opponentSubmitted, mySide, currentRound } = useGame();
-  const [answers, setAnswers] = useState<[string, string, string]>(['', '', '']);
+  const { topics, submitAnswers, submittedPlayers, mySide, currentRound, totalRounds, totalActivePlayers } = useGame();
+  const answerCount = topics.length;
+  const emptyAnswers: string[] = Array(answerCount).fill('');
+  const [answers, setAnswers] = useState<string[]>(emptyAnswers);
   const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (index: number, value: string) => {
     if (value.length <= MAX_LENGTH) {
-      const newAnswers: [string, string, string] = [...answers];
+      const newAnswers = [...answers];
       newAnswers[index] = value;
       setAnswers(newAnswers);
     }
@@ -28,8 +31,8 @@ export function AnswerForm() {
   return (
     <div className="answer-form">
       <div className="round-header">
-        <span className={`side-badge ${mySide}`}>{mySide === 'red' ? '红方' : '蓝方'}</span>
-        <span className="round-label">第 {currentRound + 1} 局 / 共 3 局</span>
+        <span className={`side-badge ${mySide}`}>{SIDE_LABELS[mySide as PlayerSide]}</span>
+        <span className="round-label">第 {currentRound + 1} 局 / 共 {totalRounds} 局</span>
       </div>
 
       {topics.map((topic, i) => (
@@ -63,10 +66,10 @@ export function AnswerForm() {
         ) : (
           <div className="submitted-status">
             <span className="check-icon">&#10003;</span> 已亮招
-            {opponentSubmitted ? (
-              <span className="opponent-ready"> 对手也已提交，正在评估...</span>
+            {submittedPlayers.length >= totalActivePlayers ? (
+              <span className="opponent-ready"> 所有人已提交，正在评估...</span>
             ) : (
-              <span className="waiting-opponent"> 等待对手提交...</span>
+              <span className="waiting-opponent"> 已提交 {submittedPlayers.length}/{totalActivePlayers} 人</span>
             )}
           </div>
         )}

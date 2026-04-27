@@ -1,6 +1,16 @@
-export type PlayerSide = 'red' | 'blue';
+// 4-color factions
+export type PlayerSide = 'red' | 'blue' | 'green' | 'yellow';
+
+export const ALL_SIDES: PlayerSide[] = ['red', 'blue', 'green', 'yellow'];
+export const SIDE_LABELS: Record<PlayerSide, string> = {
+  red: '红方',
+  blue: '蓝方',
+  green: '绿方',
+  yellow: '黄方',
+};
 
 export type GamePhase =
+  | 'waiting'
   | 'theme_select'
   | 'answering'
   | 'evaluating'
@@ -12,6 +22,7 @@ export type GamePhase =
 export interface Player {
   socketId: string;
   nickname: string;
+  side: PlayerSide;
 }
 
 export interface AnswerValues {
@@ -23,26 +34,33 @@ export interface AnswerValues {
 export interface RoundResult {
   roundIndex: number;
   topic: string;
-  answers: { red: string; blue: string };
-  values: { red: AnswerValues; blue: AnswerValues };
-  reasons: { red: string; blue: string };
+  answers: Record<PlayerSide, string>;
+  values: Record<PlayerSide, AnswerValues>;
+  reasons: Record<PlayerSide, string>;
   narrative: string;
   winner: PlayerSide;
+  rankOrder: PlayerSide[];
 }
 
 export interface Room {
   roomId: string;
-  players: { red: Player | null; blue: Player | null };
+  hostSide: PlayerSide;                        // Always 'red'
+  maxPlayers: number;                          // 2-4, set by host
+  totalRounds: number;                         // 2-5, set by host
+  players: Player[];                           // Dynamic array
   themeId: string | null;
   topics: string[];
-  answers: { red: (string | null)[]; blue: (string | null)[] };
-  submitted: { red: boolean; blue: boolean };
-  currentRound: number;  // 0-2
+  answers: Record<PlayerSide, (string | null)[]>;
+  submitted: Record<PlayerSide, boolean>;
+  currentRound: number;
   roundResults: RoundResult[];
-  scores: { red: number; blue: number };
+  scores: Record<PlayerSide, number>;          // Win count per player
+  totalBattlePower: Record<PlayerSide, number>; // Cumulative battlePower for tiebreak
+  disconnected: Record<PlayerSide, boolean>;    // Disconnect flags
   phase: GamePhase;
   gameOver: boolean;
   winner: PlayerSide | null;
-  nextRoundReady: { red: boolean; blue: boolean };
+  nextRoundReady: Record<PlayerSide, boolean>;
   restartRequest: { by: PlayerSide; themeId: string } | null;
+  restartConfirmed: Set<PlayerSide>;           // Track who confirmed restart
 }

@@ -8,7 +8,7 @@ export interface ThemeInfo {
 export interface ThemeDefinition extends ThemeInfo {
   topics: string[];
   prompts: {
-    evaluateValues: (topic: string, redAnswer: string, blueAnswer: string) => string;
-    generateBattle: (topic: string, redAnswer: string, blueAnswer: string, redValues: { relevance: number; power: number; battlePower: number }, blueValues: { relevance: number; power: number; battlePower: number }) => string;
+    evaluateValues: (topic: string, answers: Record<string, string>) => string;
+    generateBattle: (topic: string, answers: Record<string, string>, values: Record<string, { relevance: number; power: number; battlePower: number }>) => string;
   };
 }

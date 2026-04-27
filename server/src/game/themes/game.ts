@@ -1,5 +1,12 @@
 import { ThemeDefinition } from './types';
 
+const SIDE_NAMES: Record<string, string> = {
+  red: '红方',
+  blue: '蓝方',
+  green: '绿方',
+  yellow: '黄方',
+};
+
 export const GAME_THEME: ThemeDefinition = {
   id: 'game',
   name: '游戏',
@@ -69,41 +76,58 @@ export const GAME_THEME: ThemeDefinition = {
   ],
 
   prompts: {
-    evaluateValues: (topic, redAnswer, blueAnswer) =>
-      `你是一个斗蛐蛐游戏的裁判。两位玩家针对同一个主题给出答案，请评估每个答案：
+    evaluateValues: (topic, answers) => {
+      const answerLines = Object.entries(answers)
+        .map(([side, answer]) => `${SIDE_NAMES[side] || side}答案：${answer}`)
+        .join('\n');
+
+      const resultFields = Object.keys(answers)
+        .map(side => {
+          const name = SIDE_NAMES[side] || side;
+          return `  "${side}": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },\n  "${side}Reason": "<一句话说明${name}评分理由>"`;
+        })
+        .join(',\n');
+
+      return `你是一个斗蛐蛐游戏的裁判。多位玩家针对同一个主题给出答案，请评估每个答案：
 
 1. 相关系数 (0.1-10)：答案与主题的相关程度。完全跑题0.1，勉强相关2-3，比较相关4-6，高度相关7-8，完美契合9-10。
 2. 夯度/力度 (5-100)：答案的"战斗力"，考虑知名度、影响力、经典程度。冷门5-20，一般21-40，较知名41-60，高度知名61-80，殿堂级81-100。
 
 主题：${topic}
-红方答案：${redAnswer}
-蓝方答案：${blueAnswer}
+${answerLines}
 
 请以JSON格式返回，不要包含其他文字：
 {
-  "red": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },
-  "blue": { "relevance": <0.1-10保留一位小数>, "power": <5-100整数> },
-  "redReason": "<一句话说明红方评分理由>",
-  "blueReason": "<一句话说明蓝方评分理由>"
-}`,
+${resultFields}
+}`;
+    },
 
-    generateBattle: (topic, redAnswer, blueAnswer, redValues, blueValues) =>
-      `你是斗蛐蛐游戏的解说员。两位玩家围绕同一主题给出答案，已评估出战斗力。请撰写精彩对战解说并判定胜负。
+    generateBattle: (topic, answers, values) => {
+      const playerLines = Object.entries(answers)
+        .map(([side, answer]) => {
+          const name = SIDE_NAMES[side] || side;
+          const bp = values[side]?.battlePower || 0;
+          return `${name}答案：${answer}  战斗力：${bp}`;
+        })
+        .join('\n');
+
+      return `你是斗蛐蛐游戏的解说员。多位玩家围绕同一主题给出答案，已评估出战斗力。请撰写精彩的群像混战解说并判定胜负。
 
 规则：
 - 战斗力 = 相关系数 × 夯度，高者有优势但非必胜
-- 解说要生动有趣，带游戏圈梗和比喻，约500字
+- 解说要生动有趣，带游戏圈梗和比喻，约600字
+- 所有玩家的答案都要在故事中出现
 - 必须判定一个胜者，不允许平局
-- 最后用"【判定】红方胜/蓝方胜"结尾
+- 最后用"【判定】红方胜/蓝方胜/绿方胜/黄方胜"结尾（根据实际参与方）
 
 主题：${topic}
-红方答案：${redAnswer}  战斗力：${redValues.battlePower}
-蓝方答案：${blueAnswer}  战斗力：${blueValues.battlePower}
+${playerLines}
 
 请以JSON格式返回：
 {
-  "narrative": "<约500字战斗解说>",
-  "winner": "red" 或 "blue"
-}`,
+  "narrative": "<约600字战斗解说>",
+  "winner": "red" 或 "blue" 或 "green" 或 "yellow"（战斗力最高者的side）
+}`;
+    },
   },
 };

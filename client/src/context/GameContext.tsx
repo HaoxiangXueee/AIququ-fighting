@@ -1,34 +1,42 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { GameState, GamePhase, PlayerSide, AnswerValues, RoundResult, ThemeInfo } from '../types/game';
+import { GameState, GamePhase, PlayerSide, PlayerInfo, AnswerValues, ThemeInfo, FinalRankingEntry } from '../types/game';
 import { useSocket } from '../hooks/useSocket';
+
+const emptyScores: Record<PlayerSide, number> = { red: 0, blue: 0, green: 0, yellow: 0 };
+const emptyBattlePower: Record<PlayerSide, number> = { red: 0, blue: 0, green: 0, yellow: 0 };
 
 const initialState: GameState = {
   phase: 'lobby',
   roomId: null,
   mySide: null,
   myNickname: '',
-  redPlayer: null,
-  bluePlayer: null,
+  players: [],
+  maxPlayers: 2,
+  totalRounds: 3,
   availableThemes: [],
   selectedTheme: null,
   topics: [],
   currentRound: 0,
   roundResults: [],
-  scores: { red: 0, blue: 0 },
-  opponentSubmitted: false,
+  scores: { ...emptyScores },
+  totalBattlePower: { ...emptyBattlePower },
+  submittedPlayers: [],
   currentRoundValues: null,
   currentRoundBattle: null,
   nextRoundReady: false,
-  opponentNextRoundReady: false,
+  nextRoundReadyCount: 0,
+  totalActivePlayers: 0,
   restartRequested: null,
+  finalRanking: [],
   errorMessage: null,
 };
 
 interface GameContextValue extends GameState {
-  createRoom: (nickname: string) => void;
+  createRoom: (nickname: string, maxPlayers: number, totalRounds: number) => void;
   joinRoom: (roomId: string, nickname: string) => void;
+  startGame: () => void;
   selectTheme: (themeId: string) => void;
-  submitAnswers: (answers: [string, string, string]) => void;
+  submitAnswers: (answers: string[]) => void;
   nextRound: () => void;
   restartGame: (themeId: string) => void;
   confirmRestart: () => void;
@@ -43,6 +51,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socketRef,
     createRoom,
     joinRoom,
+    startGame,
     selectTheme,
     submitAnswers,
     nextRound,
@@ -54,32 +63,69 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const socket = socketRef.current;
     if (!socket) return;
 
-    socket.on('room_created', (data: { roomId: string }) => {
+    socket.on('room_created', (data: { roomId: string; maxPlayers: number; totalRounds: number }) => {
       setState((prev) => ({
         ...prev,
         phase: 'waiting' as GamePhase,
         roomId: data.roomId,
         mySide: 'red' as PlayerSide,
-        redPlayer: prev.myNickname,
+        maxPlayers: data.maxPlayers,
+        totalRounds: data.totalRounds,
+        players: [{ side: 'red' as PlayerSide, nickname: prev.myNickname }],
       }));
     });
 
     socket.on(
-      'opponent_joined',
-      (data: { availableThemes: ThemeInfo[]; redPlayer: string; bluePlayer: string }) => {
-        setState((prev) => ({
-          ...prev,
-          phase: 'theme_select' as GamePhase,
-          availableThemes: data.availableThemes,
-          redPlayer: data.redPlayer,
-          bluePlayer: data.bluePlayer,
-        }));
+      'player_joined',
+      (data: {
+        players: PlayerInfo[];
+        maxPlayers: number;
+        totalRounds: number;
+        availableThemes: ThemeInfo[];
+        yourSide: PlayerSide;
+      }) => {
+        setState((prev) => {
+          // Determine mySide: if not set yet, use the one from server
+          const mySide = prev.mySide || data.yourSide;
+          return {
+            ...prev,
+            phase: 'waiting' as GamePhase,
+            players: data.players,
+            maxPlayers: data.maxPlayers,
+            totalRounds: data.totalRounds,
+            availableThemes: data.availableThemes,
+            mySide,
+          };
+        });
       },
     );
 
+    socket.on('game_theme_select', (data: {
+      players: PlayerInfo[];
+      maxPlayers: number;
+      totalRounds: number;
+      availableThemes: ThemeInfo[];
+    }) => {
+      setState((prev) => ({
+        ...prev,
+        phase: 'theme_select' as GamePhase,
+        players: data.players,
+        maxPlayers: data.maxPlayers,
+        totalRounds: data.totalRounds,
+        availableThemes: data.availableThemes,
+      }));
+    });
+
     socket.on(
       'game_start',
-      (data: { topics: string[]; redPlayer: string; bluePlayer: string; themeId: string; themeName: string }) => {
+      (data: {
+        topics: string[];
+        players: PlayerInfo[];
+        themeId: string;
+        themeName: string;
+        maxPlayers: number;
+        totalRounds: number;
+      }) => {
         setState((prev) => {
           const selectedTheme = prev.availableThemes.find(t => t.id === data.themeId) || {
             id: data.themeId,
@@ -91,34 +137,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
             ...prev,
             phase: 'answering' as GamePhase,
             topics: data.topics,
-            redPlayer: data.redPlayer,
-            bluePlayer: data.bluePlayer,
+            players: data.players,
             selectedTheme,
+            maxPlayers: data.maxPlayers,
+            totalRounds: data.totalRounds,
             currentRound: 0,
-            opponentSubmitted: false,
+            submittedPlayers: [],
             currentRoundValues: null,
             currentRoundBattle: null,
             nextRoundReady: false,
-            opponentNextRoundReady: false,
+            nextRoundReadyCount: 0,
             restartRequested: null,
-            scores: { red: 0, blue: 0 },
+            scores: { ...emptyScores },
+            totalBattlePower: { ...emptyBattlePower },
             roundResults: [],
+            finalRanking: [],
           };
         });
       },
     );
 
-    socket.on('opponent_submitted', () => {
+    socket.on('player_submitted', (data: { side: PlayerSide; submittedCount: number; totalPlayers: number }) => {
       setState((prev) => ({
         ...prev,
-        opponentSubmitted: true,
+        submittedPlayers: [...prev.submittedPlayers.filter(s => s !== data.side), data.side],
+        totalActivePlayers: data.totalPlayers,
       }));
     });
 
-    socket.on('opponent_next_ready', () => {
+    socket.on('player_next_ready', (data: { side: PlayerSide; readyCount: number; totalPlayers: number }) => {
       setState((prev) => ({
         ...prev,
-        opponentNextRoundReady: true,
+        nextRoundReadyCount: data.readyCount,
+        totalActivePlayers: data.totalPlayers,
       }));
     });
 
@@ -135,9 +186,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         currentRound: data.roundIndex,
         currentRoundValues: null,
         currentRoundBattle: null,
-        opponentSubmitted: false,
+        submittedPlayers: [],
         nextRoundReady: false,
-        opponentNextRoundReady: false,
+        nextRoundReadyCount: 0,
         phase: 'evaluating' as GamePhase,
       }));
     });
@@ -146,16 +197,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       'round_values',
       (data: {
         roundIndex: number;
-        values: { red: AnswerValues; blue: AnswerValues };
-        answers: { red: string; blue: string };
-        reasons: { red: string; blue: string };
+        values: Record<string, AnswerValues>;
+        answers: Record<string, string>;
+        reasons: Record<string, string>;
       }) => {
         setState((prev) => ({
           ...prev,
           phase: 'showing_values' as GamePhase,
           currentRoundValues: {
-            red: data.values.red,
-            blue: data.values.blue,
+            values: data.values,
             reasons: data.reasons,
             answers: data.answers,
           },
@@ -165,31 +215,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     socket.on(
       'round_battle',
-      (data: { roundIndex: number; narrative: string; winner: PlayerSide }) => {
+      (data: { roundIndex: number; narrative: string; winner: PlayerSide; rankOrder: PlayerSide[] }) => {
         setState((prev) => {
-          // Build the round result from values + battle
-          const result: RoundResult = {
-            roundIndex: data.roundIndex,
-            topic: prev.topics[data.roundIndex],
-            answers: prev.currentRoundValues?.answers || {
-              red: '',
-              blue: '',
-            },
-            values: {
-              red: prev.currentRoundValues?.red || { relevance: 0, power: 0, battlePower: 0 },
-              blue: prev.currentRoundValues?.blue || { relevance: 0, power: 0, battlePower: 0 },
-            },
-            reasons: prev.currentRoundValues?.reasons || { red: '', blue: '' },
-            narrative: data.narrative,
-            winner: data.winner,
-          };
-
           const newScores = { ...prev.scores };
           newScores[data.winner] += 1;
 
-          const newRoundResults = [...prev.roundResults, result];
-
-          const isGameComplete = newScores.red >= 2 || newScores.blue >= 2 || data.roundIndex >= 2;
+          const isGameComplete = data.roundIndex >= prev.totalRounds - 1;
           const newPhase = isGameComplete ? ('game_over' as GamePhase) : ('round_end' as GamePhase);
 
           return {
@@ -198,9 +229,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
             currentRoundBattle: {
               narrative: data.narrative,
               winner: data.winner,
+              rankOrder: data.rankOrder,
             },
             scores: newScores,
-            roundResults: newRoundResults,
           };
         });
       },
@@ -208,20 +239,40 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     socket.on(
       'game_over',
-      (data: { winner: PlayerSide | null; scores: { red: number; blue: number } }) => {
+      (data: {
+        winner: PlayerSide | null;
+        scores: Record<PlayerSide, number>;
+        totalBattlePower: Record<PlayerSide, number>;
+        finalRanking: FinalRankingEntry[];
+      }) => {
         setState((prev) => ({
           ...prev,
           phase: 'game_over' as GamePhase,
           scores: data.scores,
+          totalBattlePower: data.totalBattlePower,
+          finalRanking: data.finalRanking,
         }));
       },
     );
 
-    socket.on('restart_requested', (data: { by: PlayerSide; themeId: string; themeName: string }) => {
+    socket.on('restart_requested', (data: { by: PlayerSide; themeId: string; themeName: string; confirmStatus: { total: number; confirmed: number } }) => {
       setState((prev) => ({
         ...prev,
-        restartRequested: { by: data.by, themeId: data.themeId, themeName: data.themeName },
+        restartRequested: { by: data.by, themeId: data.themeId, themeName: data.themeName, confirmStatus: data.confirmStatus },
       }));
+    });
+
+    socket.on('restart_confirm_progress', (data: { confirmer: PlayerSide; confirmStatus: { total: number; confirmed: number } }) => {
+      setState((prev) => {
+        if (!prev.restartRequested) return prev;
+        return {
+          ...prev,
+          restartRequested: {
+            ...prev.restartRequested,
+            confirmStatus: data.confirmStatus,
+          },
+        };
+      });
     });
 
     socket.on('restart_confirmed', () => {
@@ -229,7 +280,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ...prev,
         restartRequested: null,
         nextRoundReady: false,
-        opponentNextRoundReady: false,
+        nextRoundReadyCount: 0,
       }));
     });
 
@@ -238,6 +289,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ...prev,
         errorMessage: data.message,
       }));
+    });
+
+    socket.on('player_left', (data: { remainingSides: PlayerSide[]; remainingPlayers: number }) => {
+      setState((prev) => ({
+        ...prev,
+        players: prev.players.filter(p => data.remainingSides.includes(p.side)),
+      }));
+    });
+
+    socket.on('game_cancelled', (data: { message: string }) => {
+      setState({
+        ...initialState,
+        errorMessage: data.message,
+      });
     });
 
     socket.on('opponent_left', () => {
@@ -249,26 +314,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     return () => {
       socket.off('room_created');
-      socket.off('opponent_joined');
+      socket.off('player_joined');
+      socket.off('game_theme_select');
       socket.off('game_start');
-      socket.off('opponent_submitted');
-      socket.off('opponent_next_ready');
+      socket.off('player_submitted');
+      socket.off('player_next_ready');
       socket.off('evaluating');
       socket.off('round_start');
       socket.off('round_values');
       socket.off('round_battle');
       socket.off('game_over');
       socket.off('restart_requested');
+      socket.off('restart_confirm_progress');
       socket.off('restart_confirmed');
       socket.off('error');
+      socket.off('player_left');
+      socket.off('game_cancelled');
       socket.off('opponent_left');
     };
   }, [socketRef]);
 
   const handleCreateRoom = useCallback(
-    (nickname: string) => {
+    (nickname: string, maxPlayers: number, totalRounds: number) => {
       setState((prev) => ({ ...prev, myNickname: nickname }));
-      createRoom(nickname);
+      createRoom(nickname, maxPlayers, totalRounds);
     },
     [createRoom],
   );
@@ -278,8 +347,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({
         ...prev,
         myNickname: nickname,
-        mySide: 'blue' as PlayerSide,
-        bluePlayer: nickname,
       }));
       joinRoom(roomId, nickname);
     },
@@ -301,6 +368,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ...state,
         createRoom: handleCreateRoom,
         joinRoom: handleJoinRoom,
+        startGame,
         selectTheme,
         submitAnswers,
         nextRound: handleNextRound,

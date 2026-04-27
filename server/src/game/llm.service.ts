@@ -1,18 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AnswerValues } from './types/game';
+import { AnswerValues, PlayerSide, ALL_SIDES } from './types/game';
 import { getTheme } from './themes/registry';
 
 interface EvaluateResult {
-  red: { relevance: number; power: number };
-  blue: { relevance: number; power: number };
-  redReason: string;
-  blueReason: string;
+  [side: string]: { relevance: number; power: number } | string;
 }
 
 interface BattleResult {
   narrative: string;
-  winner: 'red' | 'blue';
+  winner: string;
 }
 
 @Injectable()
@@ -50,59 +47,69 @@ export class LlmService {
 
   async evaluateValues(
     topic: string,
-    redAnswer: string,
-    blueAnswer: string,
+    answers: Record<string, string>,
     themeId: string,
   ): Promise<{
-    red: AnswerValues;
-    blue: AnswerValues;
-    redReason: string;
-    blueReason: string;
+    values: Record<string, AnswerValues>;
+    reasons: Record<string, string>;
   }> {
     const theme = getTheme(themeId);
-    const prompt = theme.prompts.evaluateValues(topic, redAnswer, blueAnswer);
+    const prompt = theme.prompts.evaluateValues(topic, answers);
 
     const content = await this.callDeepSeek(prompt);
-    const result: EvaluateResult = JSON.parse(content);
+    const raw: EvaluateResult = JSON.parse(content);
 
-    const redRelevance = Math.max(0.1, Math.min(10, result.red.relevance));
-    const redPower = Math.max(5, Math.min(100, Math.round(result.red.power)));
-    const blueRelevance = Math.max(0.1, Math.min(10, result.blue.relevance));
-    const bluePower = Math.max(5, Math.min(100, Math.round(result.blue.power)));
+    const values: Record<string, AnswerValues> = {};
+    const reasons: Record<string, string> = {};
 
-    return {
-      red: {
-        relevance: Math.round(redRelevance * 10) / 10,
-        power: redPower,
-        battlePower: Math.round(redRelevance * redPower * 10) / 10,
-      },
-      blue: {
-        relevance: Math.round(blueRelevance * 10) / 10,
-        power: bluePower,
-        battlePower: Math.round(blueRelevance * bluePower * 10) / 10,
-      },
-      redReason: result.redReason,
-      blueReason: result.blueReason,
-    };
+    for (const side of Object.keys(answers)) {
+      const sideData = raw[side];
+      const sideReason = raw[`${side}Reason`];
+
+      if (sideData && typeof sideData === 'object') {
+        const relevance = Math.max(0.1, Math.min(10, (sideData as { relevance: number }).relevance));
+        const power = Math.max(5, Math.min(100, Math.round((sideData as { power: number }).power)));
+
+        values[side] = {
+          relevance: Math.round(relevance * 10) / 10,
+          power,
+          battlePower: Math.round(relevance * power * 10) / 10,
+        };
+      } else {
+        values[side] = { relevance: 0.1, power: 5, battlePower: 0.5 };
+      }
+
+      reasons[side] = typeof sideReason === 'string' ? sideReason : '';
+    }
+
+    return { values, reasons };
   }
 
   async generateBattle(
     topic: string,
-    redAnswer: string,
-    blueAnswer: string,
-    redValues: AnswerValues,
-    blueValues: AnswerValues,
+    answers: Record<string, string>,
+    values: Record<string, AnswerValues>,
     themeId: string,
-  ): Promise<{ narrative: string; winner: 'red' | 'blue' }> {
+  ): Promise<{ narrative: string; winner: string; rankOrder: string[] }> {
     const theme = getTheme(themeId);
-    const prompt = theme.prompts.generateBattle(topic, redAnswer, blueAnswer, redValues, blueValues);
+    const prompt = theme.prompts.generateBattle(topic, answers, values);
 
     const content = await this.callDeepSeek(prompt);
     const result: BattleResult = JSON.parse(content);
 
+    // Build rankOrder by battlePower (highest first)
+    const rankOrder = Object.keys(values)
+      .filter(side => answers[side] !== undefined)
+      .sort((a, b) => values[b].battlePower - values[a].battlePower);
+
+    // Validate winner: if LLM returned an invalid side, use the highest battlePower
+    const validSides = new Set(Object.keys(answers));
+    const winner = validSides.has(result.winner) ? result.winner : rankOrder[0];
+
     return {
       narrative: result.narrative,
-      winner: result.winner === 'red' ? 'red' : 'blue',
+      winner,
+      rankOrder,
     };
   }
 }
