@@ -1,22 +1,5 @@
 import { Injectable } from '@nestjs/common';
-
-export const TOPIC_POOL = [
-  '最经典的FPS游戏',
-  '最感人的游戏剧情',
-  '最肝的游戏',
-  '最好玩的开放世界游戏',
-  '最恐怖的生存游戏',
-  '最好看的游戏女角色',
-  '最帅的游戏男角色',
-  '最想穿越进去的游戏世界',
-  '最被低估的神作',
-  '最让人破防的游戏结局',
-  '最爽的战斗系统',
-  '最经典的游戏BOSS',
-  '最适合联机的游戏',
-  '最有氛围感的游戏',
-  '最想改编成电影的游戏',
-];
+import { TOPIC_POOL } from './topics';
 
 const ROUNDS_PER_GAME = 3;
 const MAX_ANSWER_LENGTH = 100;
