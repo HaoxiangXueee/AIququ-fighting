@@ -97,14 +97,15 @@ export class LlmService {
     const content = await this.callDeepSeek(prompt);
     const result: BattleResult = JSON.parse(content);
 
-    // Build rankOrder by battlePower (highest first)
-    const rankOrder = Object.keys(values)
-      .filter(side => answers[side] !== undefined)
-      .sort((a, b) => values[b].battlePower - values[a].battlePower);
-
     // Validate winner: if LLM returned an invalid side, use the highest battlePower
     const validSides = new Set(Object.keys(answers));
-    const winner = validSides.has(result.winner) ? result.winner : rankOrder[0];
+    const byPower = Object.keys(values)
+      .filter(side => answers[side] !== undefined)
+      .sort((a, b) => values[b].battlePower - values[a].battlePower);
+    const winner = validSides.has(result.winner) ? result.winner : byPower[0];
+
+    // Build rankOrder: winner first, then remaining by battlePower descending
+    const rankOrder = [winner, ...byPower.filter(side => side !== winner)];
 
     return {
       narrative: result.narrative,
