@@ -181,7 +181,7 @@ ${resultFields}
   · 可以调侃NBA著名事件（如Decision、停摆、泡泡园区、超级球队、抱团、交易、选秀夜、全明星选人等）
   · 适当引用真实数据、名场面、经典解说词（如"Bang!""Kobe!""Not one not two not three""This is my house"）
 - 所有球员都要在解说中出现
-- 必须判定一个胜者，不允许平局
+- 必须判定所有参赛选手的最终排名（第1名到第N名），不允许平局
 - 最后用"【判定】红方胜/蓝方胜/绿方胜/黄方胜"结尾（根据实际参与方）
 
 主题：${topic}
@@ -190,7 +190,8 @@ ${playerLines}
 请以JSON格式返回：
 {
   "narrative": "<约600字炸裂NBA对决解说>",
-  "winner": "red" 或 "blue" 或 "green" 或 "yellow"（战斗力最高者的side）
+  "winner": "red" 或 "blue" 或 "green" 或 "yellow"（第1名的side）,
+  "rankOrder": ["第1名side", "第2名side", ...]（按最终排名从第1到最后的side数组）
 }`;
     },
   },

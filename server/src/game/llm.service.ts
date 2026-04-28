@@ -10,6 +10,7 @@ interface EvaluateResult {
 interface BattleResult {
   narrative: string;
   winner: string;
+  rankOrder: string[];
 }
 
 @Injectable()
@@ -97,15 +98,20 @@ export class LlmService {
     const content = await this.callDeepSeek(prompt);
     const result: BattleResult = JSON.parse(content);
 
-    // Validate winner: if LLM returned an invalid side, use the highest battlePower
+    // Build fallback rankOrder by battlePower descending
     const validSides = new Set(Object.keys(answers));
     const byPower = Object.keys(values)
       .filter(side => answers[side] !== undefined)
       .sort((a, b) => values[b].battlePower - values[a].battlePower);
-    const winner = validSides.has(result.winner) ? result.winner : byPower[0];
 
-    // Build rankOrder: winner first, then remaining by battlePower descending
-    const rankOrder = [winner, ...byPower.filter(side => side !== winner)];
+    // Validate rankOrder from LLM: must contain exactly all valid sides, no extras
+    const llmRankOrder = Array.isArray(result.rankOrder) ? result.rankOrder : [];
+    const rankIsValid = llmRankOrder.length === validSides.size &&
+      llmRankOrder.every(side => validSides.has(side)) &&
+      new Set(llmRankOrder).size === llmRankOrder.length;
+
+    const rankOrder = rankIsValid ? llmRankOrder : byPower;
+    const winner = validSides.has(result.winner) ? result.winner : rankOrder[0];
 
     return {
       narrative: result.narrative,
