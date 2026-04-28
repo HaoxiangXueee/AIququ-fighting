@@ -8,6 +8,7 @@ function ValueCard({
   reason,
   answer,
   rank,
+  isMe,
 }: {
   side: string;
   nickname: string;
@@ -15,12 +16,14 @@ function ValueCard({
   reason: string;
   answer: string;
   rank: number;
+  isMe: boolean;
 }) {
   return (
-    <div className={`battle-card ${side}`}>
+    <div className={`battle-card ${side} ${isMe ? 'me' : ''}`}>
       <div className="card-header">
         <span className={`side-badge ${side}`}>{SIDE_LABELS[side as PlayerSide]}</span>
         <span className="card-nickname">{nickname}</span>
+        {isMe && <span className="me-badge">你</span>}
         {rank === 1 && <span className="rank-badge">TOP</span>}
       </div>
       <div className="card-answer">"{answer}"</div>
@@ -44,7 +47,7 @@ function ValueCard({
 }
 
 export function BattleCard() {
-  const { currentRoundValues, players, currentRoundBattle } = useGame();
+  const { currentRoundValues, players, currentRoundBattle, mySide } = useGame();
 
   if (!currentRoundValues) return null;
 
@@ -77,6 +80,7 @@ export function BattleCard() {
           reason={data.reason}
           answer={data.answer}
           rank={data.rank}
+          isMe={data.side === mySide}
         />
       ))}
     </div>
