@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { PlayerSide, SIDE_LABELS } from '../types/game';
 
@@ -17,6 +18,7 @@ export function GameStatus() {
     finalRanking,
   } = useGame();
 
+  const [restartConfirmed, setRestartConfirmed] = useState(false);
   const isGameOver = phase === 'game_over';
 
   const renderPlayers = () => (
@@ -95,13 +97,16 @@ export function GameStatus() {
         {restartRequested ? (
           <div className="restart-panel">
             <p className="restart-info">
-              {restartRequested.by === mySide
-                ? `等待对手确认重开... (${restartRequested.confirmStatus.confirmed}/${restartRequested.confirmStatus.total})`
-                : `对手请求以「${restartRequested.themeName}」主题重开，是否同意？`}
+              已有 {restartRequested.confirmStatus.confirmed}/{restartRequested.confirmStatus.total} 人同意重开
             </p>
-            {restartRequested.by !== mySide && (
-              <button className="btn btn-primary" onClick={confirmRestart}>
+            {restartRequested.by !== mySide && !restartConfirmed && (
+              <button className="btn btn-primary" onClick={() => { confirmRestart(); setRestartConfirmed(true); }}>
                 同意重开
+              </button>
+            )}
+            {restartRequested.by !== mySide && restartConfirmed && (
+              <button className="btn btn-primary" disabled>
+                已同意 &#10003;
               </button>
             )}
           </div>

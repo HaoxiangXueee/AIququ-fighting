@@ -698,6 +698,28 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.topic-item.current {
+  border-color: var(--gold);
+  box-shadow: 0 0 16px var(--gold-glow);
+  background: linear-gradient(135deg, rgba(212, 160, 23, 0.06), transparent);
+}
+
+.topic-item.completed {
+  opacity: 0.5;
+}
+
+.topic-item.completed .topic-number {
+  background: linear-gradient(135deg, #2ecc71, #1e8449);
+}
+
+.topic-item.completed .topic-number::after {
+  content: ' ✓';
 }
 
 .topic-label {

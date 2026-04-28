@@ -32,11 +32,11 @@ export function AnswerForm() {
     <div className="answer-form">
       <div className="round-header">
         <span className={`side-badge ${mySide}`}>{SIDE_LABELS[mySide as PlayerSide]}</span>
-        <span className="round-label">第 {currentRound + 1} 局 / 共 {totalRounds} 局</span>
+        <span className="round-label">题目 {currentRound + 1} / 共 {totalRounds} 题</span>
       </div>
 
       {topics.map((topic, i) => (
-        <div key={i} className="topic-item">
+        <div key={i} className={`topic-item ${i === currentRound ? 'current' : ''} ${i < currentRound ? 'completed' : ''}`}>
           <label className="topic-label">
             <span className="topic-number">{i + 1}</span>
             {topic}
